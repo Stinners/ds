@@ -1,19 +1,15 @@
 
-use std::collections::HashSet;
-use std::io::{BufRead, BufReader, stdout, stderr, Read};
+use std::io::{self, BufRead, BufReader, Read};
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
+use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread;
-use std::sync::mpsc::{Sender, Receiver};
-use std::sync::mpsc;
-use std::hash::{Hash, Hasher};
-use std::borrow::Cow;
-use std::path::Path;
 
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum LineSource { Out, Error }
 
+#[derive(Debug)]
 pub struct LineMessage {
     pub line: String,
     pub source: LineSource,
@@ -59,12 +55,12 @@ where
         });
 }
 
-pub fn run_command(cmd: &str) -> Receiver<LineMessage> {
-    let output = Command::new(cmd)
+pub fn run_command(command: &str) -> io::Result<Receiver<LineMessage>> {
+    dbg!(command);
+    let output = Command::new(command)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .spawn()
-        .unwrap();
+        .spawn()?;
 
     let stdout = output.stdout.unwrap();
     let stderr = output.stderr.unwrap();
@@ -73,5 +69,5 @@ pub fn run_command(cmd: &str) -> Receiver<LineMessage> {
     capture_stream(stdout, LineSource::Out, tx.clone());
     capture_stream(stderr, LineSource::Error, tx);
 
-    rx
+    Ok(rx)
 }

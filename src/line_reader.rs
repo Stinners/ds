@@ -1,11 +1,6 @@
 
 use std::collections::HashSet;
-use std::io::{BufRead, BufReader, stdout, stderr, Read};
-use std::process::{Command, Stdio};
-use std::sync::{Arc, Mutex};
-use std::thread;
-use std::sync::mpsc::{Sender, Receiver};
-use std::sync::mpsc;
+use std::sync::mpsc::Receiver;
 use std::hash::{Hash, Hasher};
 use std::borrow::Cow;
 use std::path::Path;
@@ -67,7 +62,7 @@ impl<'a> LinePart<'a> {
             LinePart::Text(text) => Some(Cow::Borrowed(text)),
             LinePart::Space => None,
             LinePart::File(file) => {
-                let text = format!("{YELLOW_TEXT}{0}. {UNDERLINE_TEXT}{1}{RESET_TEXT}", file.idx, file.name);
+                let text = format!("{GREEN_TEXT}({0}){1}{RESET_TEXT}", file.idx, file.name);
                 Some(Cow::Owned(text))
             }
             LinePart::Candidate(_) => {
@@ -87,10 +82,8 @@ pub fn process_streams(rx: Receiver<LineMessage>, files: &mut HashSet<File>) {
     let mut stdout_closed = false;
     let mut stderr_closed = false;
 
-    loop {
+    while !(stderr_closed && stdout_closed) {
         let message = rx.recv().unwrap();
-        let line_parts = parse_line(&message.line);
-        print_line_parts(files, line_parts);
 
         if message.close_stream {
             match message.source {
@@ -99,9 +92,14 @@ pub fn process_streams(rx: Receiver<LineMessage>, files: &mut HashSet<File>) {
             };
         }
 
-        if stderr_closed && stdout_closed {
-            break;
+        // Avoid printing an empty line for the end of file
+        if message.close_stream && message.line.is_empty() {
+            continue;
         }
+
+        let line_parts = parse_line(&message.line);
+        print_line_parts(files, line_parts);
+
     }
 }
 
@@ -117,10 +115,9 @@ fn parse_line<'a>(line: &'a str) -> Vec<LinePart<'a>> {
     let mut is_candiate = false;
 
     for (idx, byte) in line.bytes().enumerate() {
-
         // A space indicates the end of a token 
         // TODO: find a better way to do this then comparing to magic numbers
-        if byte == 32 {
+        if [32, 13, 10].contains(&byte) {
             let slice = &line[start_idx..idx];
             let line_part = LinePart::new(slice, is_candiate);
 
@@ -147,20 +144,22 @@ fn parse_line<'a>(line: &'a str) -> Vec<LinePart<'a>> {
 
 
 
-fn print_line_parts(files: &mut HashSet<File>, line: Vec<LinePart>) -> String {
+fn print_line_parts(files: &mut HashSet<File>, line: Vec<LinePart>) {
     let parts = line.into_iter().map(|part| check_if_file_exists(files, part));
 
     let mut output = String::new();
     for part in parts {
         let text = part.render();
 
+        if output.len() != 0 {
+            output.push_str(" ");
+        }
+
         if let Some(text) = text {
             output.push_str(&text);
         }
-        output.push_str(" ");
     }
-    output
-
+    println!("{}", output);
 }
 
 
