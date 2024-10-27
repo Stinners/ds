@@ -5,6 +5,7 @@ use std::sync::{Arc, Mutex};
 use std::sync::mpsc::{self, Sender, Receiver};
 use std::thread;
 
+use crate::input_reader::CommandCall;
 
 #[derive(Copy, Clone, Debug)]
 pub enum LineSource { Out, Error }
@@ -17,7 +18,8 @@ pub struct LineMessage {
 }
 
 
-// This takes a stream (stdout or stderr) from a process and writes it's output
+// This takes a stream (stdout or stderr) from a process, formats it's output into LineMessages 
+// and writes it's output to the sender
 fn capture_stream<R>(mut stream: R, stream_type: LineSource, tx: Sender<LineMessage>)
 where 
     R: Read + Send + 'static 
@@ -55,9 +57,10 @@ where
         });
 }
 
-pub fn run_command(command: &str) -> io::Result<Receiver<LineMessage>> {
-    dbg!(command);
-    let output = Command::new(command)
+pub fn run_command(command: &CommandCall) -> io::Result<Receiver<LineMessage>> {
+
+    let output = Command::new(command.command.clone())
+        .args(command.args.clone())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()?;
