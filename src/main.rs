@@ -27,8 +27,14 @@ fn run() -> Result<(), String> {
     let args = env::args().collect();
     let (command, config) = read_args(args)?;
     let files = execute_command_and_read_files(&config, command)?;
-    let file_num = read_file_number(files.len())?;
-    open_file(&files, file_num)?;
+
+    if files.len() != 0 {
+        let file_num = read_file_number(files.len())?;
+        open_file(&files, file_num)?;
+    }
+    else {
+        println!("No files found in output");
+    }
     Ok(())
 }
 

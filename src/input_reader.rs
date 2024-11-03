@@ -9,6 +9,7 @@ pub struct Config {
     pub replay_last: bool,
     pub store_only: bool,
     pub files_only: bool,
+    pub open_here: bool,
     pub print_help: bool,
 }
 
@@ -20,6 +21,7 @@ impl Default for Config {
             replay_last: false,
             store_only: false,
             files_only: false,
+            open_here: false,
             print_help: false,
         }
     }
@@ -48,6 +50,7 @@ impl Flag {
             Flag::new('r', "replay-last", "Runs the last command found in the shell history file"),
             Flag::new('s', "store",       "Stores the files found, but does not prompt to select a file"),
             Flag::new('f', "files-only",  "Prints only the filenames, not surrounding context"),
+            Flag::new('o', "open-here",   "Open file in current terminal, not using nvim server"),
             Flag::new('h', "help",        "Prints this message and exits"),
         )
     }
@@ -132,7 +135,6 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
         // Long form args
         else if arg.starts_with("--") {
             let arg_name = &arg[2..];
-            dbg!(arg_name);
             let this_flag = flags.iter().find(|flag| flag.long == arg_name);
             
             match this_flag {

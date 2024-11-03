@@ -3,7 +3,7 @@ use std::collections::HashSet;
 use std::sync::mpsc::Receiver;
 use std::hash::{Hash, Hasher};
 use std::borrow::Cow;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::processes::{LineSource, LineMessage};
 use crate::input_reader::Config;
@@ -171,13 +171,43 @@ fn print_line_parts(config: &Config, files: &mut HashSet<File>, line: Vec<LinePa
     println!("{}", output);
 }
 
+fn path_exists(name: &str) -> Option<String> {
+    if Path::new(&name).exists() {
+        Some(name.to_string())
+    } else {
+        None
+    }
+}
+
+// THis checks if the filename exists, and also applies a few common heuristics 
+// to look for common patterns of printing names
+fn check_file_exists(name: &str) -> Option<String> {
+
+    let file_path = if let Some(name) = path_exists(name) {
+        Some(name)
+    }
+
+    // Parenthesized e.g. (filename.txt): as in dbt
+    // NOTE: at the moment if a file matches the condition,
+    // this won't check any subsequent branches
+    else if name.starts_with("(") && name.ends_with(")") {
+        let stripped_name = &name[1..(name.len()-1)];
+        path_exists(stripped_name)
+    }
+
+    else {
+        None
+    };
+
+    file_path
+}
 
 fn check_if_file_exists<'a>(files: &mut HashSet<File>, raw_part: LinePart<'a>) -> LinePart<'a> {
     // Check candidates in the line and return 
     match raw_part {
         LinePart::Candidate(name) => {
-            if Path::new(name).exists() {
-            let file = File { idx: files.len() + 1, name: name.to_string(), line: None };
+            if let Some(path) = check_file_exists(name) {
+            let file = File { idx: files.len() + 1, name: path, line: None };
                 if !files.contains(&file) {
                     files.insert(file.clone());
                     return LinePart::File(file);

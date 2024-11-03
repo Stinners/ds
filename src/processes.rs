@@ -58,8 +58,6 @@ where
 }
 
 pub fn run_command(command: &CommandCall) -> io::Result<Receiver<LineMessage>> {
-    dbg!(&command);
-
     let output = Command::new(command.command.clone())
         .args(command.args.clone())
         .stdout(Stdio::piped())
