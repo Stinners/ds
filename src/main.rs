@@ -3,7 +3,8 @@
 
 use std::env;
 use std::collections::HashSet;
-use std::io::{stdin, stdout, Read, Write};
+use std::io::{stdin, stdout, Read, Write, BufReader, BufRead};
+use std::path::{PathBuf, Path};
 use std::process::Command;
 
 mod processes;
@@ -24,25 +25,20 @@ fn main() {
 
 fn run() -> Result<(), String> {
     let args = env::args().collect();
-    let (command, _config) = read_args(args)?;
-    let files = execute_command_and_read_files(command)?;
+    let (command, config) = read_args(args)?;
+    let files = execute_command_and_read_files(&config, command)?;
     let file_num = read_file_number(files.len())?;
     open_file(&files, file_num)?;
     Ok(())
 }
 
+
 // Run a command an extract a list of files
-fn execute_command_and_read_files(command: CommandCall) -> Result<HashSet<File>, String> {
-    match run_command(&command) {
-        Ok(stream) => {
-            let mut file_set = HashSet::new();
-            process_streams(stream, &mut file_set);
-            Ok(file_set)
-        },
-        Err(error) => {
-            Err(format!("Failed to start process: {}, {}", command.command, error))
-        }
-    }
+fn execute_command_and_read_files(config: &Config, command: CommandCall) -> Result<HashSet<File>, String> {
+    let stream = run_command(&command)
+        .map_err(|err| format!("Failed to start process: '{}', {}", command.command, err))?;
+    let file_set = process_streams(&config, stream);
+    Ok(file_set)
 }
 
 
@@ -76,9 +72,17 @@ fn read_file_number(max_n: usize) -> Result<usize, String> {
 
 fn open_file(files: &HashSet<File>, file_num: usize) -> Result<(), String> {
     let file = files.into_iter().find(|f| f.idx == file_num).unwrap();
-    let out = Command::new("nvim")
-        .arg(file.name.clone())
-        .status();
+
+    let mut cmd = Command::new("nvim");
+
+    if let Ok(home_dir) = std::env::var("HOME") {
+        let server_path = Path::new(&home_dir).join(".config/nvim/server.pipe");
+        cmd.arg("--server")
+           .arg(server_path)
+           .arg("--remote");
+    };
+
+    let out = cmd.arg(file.name.clone()).status();
 
     match out {
         Ok(_) => Ok(()),

@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::path::Path;
 
 use crate::processes::{LineSource, LineMessage};
+use crate::input_reader::Config;
 
 // ====================== Constants =========================
 
@@ -57,12 +58,18 @@ impl<'a> LinePart<'a> {
         }
     }
 
-    pub fn render(&self) -> Option<Cow<'a, str>> {
+    pub fn write_file_name(config: &Config, file: &File) -> String {
+        let effect = if config.no_colour { UNDERLINE_TEXT } else { GREEN_TEXT };
+        format!("{effect}[{0}. {1}]{RESET_TEXT}", file.idx, file.name)
+
+    }
+
+    pub fn render(&self, config: &Config) -> Option<Cow<'a, str>> {
         match self {
             LinePart::Text(text) => Some(Cow::Borrowed(text)),
             LinePart::Space => None,
             LinePart::File(file) => {
-                let text = format!("{GREEN_TEXT}({0}){1}{RESET_TEXT}", file.idx, file.name);
+                let text = LinePart::write_file_name(config, &file);
                 Some(Cow::Owned(text))
             }
             LinePart::Candidate(_) => {
@@ -78,10 +85,11 @@ impl<'a> LinePart<'a> {
 // ====================== Main Function =========================
 
 
-pub fn process_streams(rx: Receiver<LineMessage>, files: &mut HashSet<File>) {
+pub fn process_streams(config: &Config, rx: Receiver<LineMessage>) -> HashSet<File> {
     let mut stdout_closed = false;
     let mut stderr_closed = false;
 
+    let mut files = HashSet::new();
     while !(stderr_closed && stdout_closed) {
         let message = rx.recv().unwrap();
 
@@ -98,9 +106,10 @@ pub fn process_streams(rx: Receiver<LineMessage>, files: &mut HashSet<File>) {
         }
 
         let line_parts = parse_line(&message.line);
-        print_line_parts(files, line_parts);
+        print_line_parts(config, &mut files, line_parts);
 
     }
+    files
 }
 
 
@@ -144,12 +153,12 @@ fn parse_line<'a>(line: &'a str) -> Vec<LinePart<'a>> {
 
 
 
-fn print_line_parts(files: &mut HashSet<File>, line: Vec<LinePart>) {
+fn print_line_parts(config: &Config, files: &mut HashSet<File>, line: Vec<LinePart>) {
     let parts = line.into_iter().map(|part| check_if_file_exists(files, part));
 
     let mut output = String::new();
     for part in parts {
-        let text = part.render();
+        let text = part.render(config);
 
         if output.len() != 0 {
             output.push_str(" ");

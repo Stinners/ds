@@ -1,5 +1,6 @@
 
 use std::env;
+use std::io::{Seek, SeekFrom};
 
 #[derive(Debug, PartialEq)]
 pub struct Config {
@@ -79,8 +80,19 @@ pub fn read_args(args: Vec<String>) -> Result<(CommandCall, Config), String> {
     
     let config = parse_config(config_args)?;
 
-    // Note that we might skip thi sometimes based on the config
-    let command = parse_command(command_args)?;
+    /*
+    let command = if config.replay_last {
+        read_last_command_from_hist_file()?
+    }
+    else {
+    };
+    */
+    let  command = parse_command(command_args)?;
+
+    // TODO: strip of the ds parts and call the underlying command
+    if command.command == "ds" {
+        return Err(format!("Command is a recursive call to 'ds'"));
+    }
 
     Ok((command, config))
 }
@@ -146,6 +158,7 @@ fn parse_config(args: Vec<String>) -> Result<Config, String> {
     Ok(config)
 }
 
+
 fn parse_command(args: Vec<String>) -> Result<CommandCall, String> {
     let args: Vec<String> = args.into_iter().collect();
 
@@ -158,6 +171,24 @@ fn parse_command(args: Vec<String>) -> Result<CommandCall, String> {
         args: args[1..].to_vec(),
     })
 }
+
+/*
+fn read_last_command_from_hist_file() -> Result<CommandCall, String> {
+    let filename = std::env::var("HISTFILE")
+        .map_err(|_| "No HISTFILE configured, cannot use -r".to_string())?;
+
+    let file = std::fs::File::open(&filename)
+        .map_err(|err| format!("Failed to open history file: '{}', {}", &filename, err))?;
+
+    // Read the second to last line from the file 
+    // The last line is the current call to ds
+    unimplemented!();
+
+    parse_command(parts)
+}
+*/
+
+
 
 #[cfg(test)]
 mod test {
